@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 )
 
 var addr = flag.String("addr", ":8080", "http service address")
@@ -22,8 +23,21 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
+	/**
+		*  -------------------------------------------------------------------   +|
+							静态文件服务
+	     @see https://github.com/YuriyNasretdinov/social-net/blob/part1/main.go # serveStatic
+
+	*/
+	logger := log.New(os.Stdout, "server: ", log.Lshortfile)
+	// http.Handle("/", Notify(logger)(indexHandler))
 	fs := http.FileServer(http.Dir("assets/"))
-	http.Handle("/static", http.StripPrefix("/static/", fs))
+	// 对于形如 /static/css/some-style.css   的文件 对应的寻找位置是 assets/css/some-style.css
+	http.Handle("/static/", Notify(logger)(http.StripPrefix("/static/", fs)))
+	/**
+	*  -------------------------------------------------------------------   +|
+	 */
 
 	flag.Parse()
 
