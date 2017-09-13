@@ -1,22 +1,34 @@
-package main
+package socketio
 
 import (
 	"log"
-	"net/http"
 
 	"github.com/graarh/golang-socketio"
 	"github.com/graarh/golang-socketio/transport"
 )
 
-func main() {
+var rooms = []string{"chat", "room2", "room3"}
+
+// func main()  {
+func InitHandler() *gosocketio.Server {
 	//create
 	server := gosocketio.NewServer(transport.GetDefaultWebsocketTransport())
 
 	//handle connected
 	server.On(gosocketio.OnConnection, func(c *gosocketio.Channel) {
 		log.Println("New client connected")
-		//join them to room
-		c.Join("chat")
+		//join them to the default room
+		c.Join(rooms[0])
+
+		// 匿名结构体
+		var eventData struct {
+			Rooms       []string `json:"rooms"`
+			CurrentRoom string   `json:"currentRoom"`
+		}
+		eventData.Rooms = rooms
+		eventData.CurrentRoom = rooms[0]
+
+		c.Emit("updateRooms", eventData)
 	})
 
 	type Message struct {
@@ -32,8 +44,14 @@ func main() {
 		return "OK"
 	})
 
-	//setup http server
-	serveMux := http.NewServeMux()
-	serveMux.Handle("/socket.io/", server)
-	log.Panic(http.ListenAndServe(":80", serveMux))
+	/*
+		//setup http server
+		serveMux := http.NewServeMux()
+		serveMux.Handle("/socket.io/", server)
+		// log.Panic(http.ListenAndServe(":80", serveMux))
+
+		return serveMux
+	*/
+	return server
+
 }

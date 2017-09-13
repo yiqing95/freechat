@@ -6,8 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	// 最好起个别名 防止跟标准的gorilla websocket包同名语义冲突
-	"github.com/yiqing95/freechat/server/websocket"
+	"github.com/yiqing95/freechat/server/socketio"
 )
 
 var addr = flag.String("addr", ":8080", "http service address")
@@ -47,26 +46,21 @@ func main() {
 
 	flag.Parse()
 
-	http.HandleFunc("/", serveHome)
-	http.HandleFunc("/socketio", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "home-socketio.html")
-	})
-	/*
-		hub := newHub()
-		go hub.run()
-	*/
-	/*
-		http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-			serveWs(hub, w, r)
-		})
-	*/
-	// 应该根据flag 决定启动 websocket 或者socketio支持
-	hub := websocket.NewHub()
-	go hub.Run()
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		websocket.ServeWs(hub, w, r)
+	ioserver := socketio.InitHandler()
+	http.Handle("/socket.io/", ioserver)
+
+	// http.HandleFunc("/", serveHome)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		NewView(w).Rend("home/index", nil)
 	})
 
+	/*
+		http.HandleFunc("/socketio", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, "home-socketio.html")
+		})
+	*/
+
+	// err := http.ListenAndServe(*addr, nil)
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)

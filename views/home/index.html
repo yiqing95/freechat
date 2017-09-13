@@ -1,0 +1,168 @@
+ {{define "title" }}Home{{end}} {{define "style"}}
+<!-- <link rel="stylesheet" href="/static/css/home.css"> -->
+<style>
+    body {
+        background-color: lightblue;
+    }
+
+    h1 {
+        color: navy;
+        margin-left: 20px;
+    }
+</style>
+{{end}} {{define "content"}}
+
+
+<div class="row">
+
+    <div class="col-4">
+        <div class="card border-light text-white bg-secondary ">
+            <div class="card-header">
+                <i class="material-icons">room</i> Rooms <span class="badge badge-secondary">
+                            1 </span>
+            </div>
+            <div class="card-body">
+                <h4 class="card-title">房间:</h4>
+
+                <ul class="list-group" id="rooms">
+                    <li class="list-group-item list-group-item-info">
+                        user &nbsp;
+                        <span v-if="userIsTyping(user)">
+                                        <i  class="material-icons">create </i>...
+                                </span>
+
+                    </li>
+                </ul>
+
+            </div>
+        </div>
+
+    </div>
+
+    <div class="col-8">
+        <div class="card text-white bg-secondary " style="">
+            <div class="card-header">
+                <i class="material-icons">chat </i> Let's chat
+            </div>
+            <div class="card-body">
+                <h4 class="card-title">Secondary card title</h4>
+                <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
+
+                <ul class="list-unstyled" style="max-height:450px;overflow:auto;" v-on:DOMNodeInsertedIntoDocument="chatPanelScrollToBottom">
+                    <li v-for="message in messages" class="media">
+
+                        <div v-if="message.type == 'info' " class="info">
+                            <i class="material-icons">notifications</i>
+                            <div class="d-inline-block bg-warning">
+                                message.msg
+                            </div>
+
+                            <i class="material-icons">event_note</i>
+
+                        </div>
+
+
+                        <div v-if="message.type == 'chat' " class="chat">
+
+                            <i class="material-icons">chat</i>
+                            <span class="bg-primary"> message.user  </span> message.timestamp
+                            <div class="d-inline bg-success"> message.text </div>
+
+
+                        </div>
+
+                    </li>
+
+                </ul>
+
+                <hr style="color:blueviolet">
+                <form @submit.prevent="send" class="form-inline">
+                    <div class="form-group mx-sm-3">
+                        <label for="message" class="sr-only">输入</label>
+                        <input v-model="message.text" v-on:keyup="usersAreTyping" v-on:keyup.13="stoppedTyping('13')" v-on:keyup.8="stoppedTyping('8')"
+                            type="text" class="form-control" id="message" placeholder="your message here!">
+                    </div>
+                    <button type="submit" class="btn btn-primary">send</button>
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="log">
+
+    </div>
+</div>
+
+{{end}} {{ define "js" }}
+<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+<script src="https://cdn.bootcss.com/socket.io/2.0.3/socket.io.js"></script>
+<script>
+    //Will be adding CHATROOM LOGIC HERE
+    //We have Server Side funtions, now we need to add client side functions
+    var socket = io.connect({
+        // path: '/', // 默认是/socket.io  坑爹了 @see https://socket.io/docs/client-api/#
+        transports: ['websocket']
+    });
+    socket.on('connect', function () {
+        // socket.emit('addUser', prompt("What's your name"));
+    });
+    socket.on('updateChat', function (username, data) {
+        $('#conversation').append('<b>' + username + ':</b> ' + data + '<br>');
+    });
+    socket.on('updateRooms', function (roomInfo) {
+        var rooms = roomInfo.rooms;
+        var currentRoom = roomInfo.currentRoom;
+        /*
+        console.log([
+            rooms,
+            currentRoom
+        ]) ;
+        */
+        $('#rooms').empty();
+        $.each(rooms, function (key, value) {
+            /*
+             */
+            var $room = $("<li>")
+                .addClass("list-group-item ")
+                .html(value);
+
+            if (value === currentRoom) {
+               $room.addClass('list-group-item-warning')
+            } else {
+               $room.addClass('list-group-item-info')
+            }
+
+            $("#rooms").append($room);
+
+        });
+    });
+
+    function switchRoom(room) {
+        socket.emit('switchRoom', room);
+    }
+    //when the page loads we need to do a few things
+    $(function () {
+        //get sent data on click
+        $('#datasend').click(function () {
+            var message = $('#data').val();
+            //clear the input box
+            $('#data').val('');
+            $('#data').focus();
+            //send it to the server
+            socket.emit('sendChat', message);
+        });
+        //allow the client to use enter key
+        $('#data').keypress(function (e) {
+            if (e.which == 13) {
+                $(this).blur();
+                //select the send box
+                $('#datasend').focus().click();
+                //Select the input box
+                $('#data').focus();
+            }
+        });
+    });
+</script>
+</script>
+{{ end }}
