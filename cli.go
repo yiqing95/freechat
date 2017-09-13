@@ -48,6 +48,9 @@ func main() {
 	flag.Parse()
 
 	http.HandleFunc("/", serveHome)
+	http.HandleFunc("/socketio", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "home-socketio.html")
+	})
 	/*
 		hub := newHub()
 		go hub.run()
