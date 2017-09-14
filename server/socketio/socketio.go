@@ -56,12 +56,21 @@ func InitHandler() *gosocketio.Server {
 		c.Emit("updateRooms", eventData)
 	})
 
-	getUsersInRoom := func(room string) []ClientUser {
+	getUsersInRoom := func(room string, currentChannel *gosocketio.Channel) []ClientUser {
 		var channelsInRoom []*gosocketio.Channel
-		channelsInRoom = server.List(rooms[0])
+		channelsInRoom = server.List(room)
+
+		fmt.Println(" room: ", room, " channels : ", len(channelsInRoom))
+
 		var userList []ClientUser
 		// 遍历当前房间下的往昔客户channel
 		for _, ch := range channelsInRoom {
+			if currentChannel != nil {
+				// 忽略当前的用户
+				if currentChannel.Id() == ch.Id() {
+					continue
+				}
+			}
 			userList = append(userList, channelUserMap[ch.Id()])
 		}
 		return userList
@@ -80,7 +89,7 @@ func InitHandler() *gosocketio.Server {
 			}
 		*/
 		room := rooms[0] // 默认的房间
-		userList := getUsersInRoom(room)
+		userList := getUsersInRoom(room, c)
 		if len(userList) > 0 {
 			c.Emit("usersInRoom", userList)
 		}
@@ -133,7 +142,7 @@ func InitHandler() *gosocketio.Server {
 
 		log.Println(fmt.Sprintf("user %s leave room: %s ", clientUser.Username, room))
 
-		c.BroadcastTo(room, "usersInRoom", getUsersInRoom(room))
+		c.BroadcastTo(room, "usersInRoom", getUsersInRoom(room, c))
 
 		msg := Message{
 			Type: "sysinfo",
