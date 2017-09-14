@@ -46,7 +46,7 @@ func (this View) Rend(viewFile string, data interface{}) {
 		matches, err2 := filepath.Glob(viewFilePattern)
 		if err2 != nil {
 			// 未找到匹配的视图文件
-			panic("view file not exists: " + viewFile)
+			panic("view file does not exist: " + viewFile)
 		}
 		viewFile = matches[0]
 	}

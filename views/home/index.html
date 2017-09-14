@@ -15,7 +15,7 @@
 
 <div class="row">
 
-    <div class="col-4">
+    <div class="col-2">
         <div class="card border-light text-white bg-secondary ">
             <div class="card-header">
                 <i class="material-icons">room</i> Rooms <span class="badge badge-secondary">
@@ -48,8 +48,8 @@
                 <h4 class="card-title">Secondary card title</h4>
                 <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
 
-                <ul class="list-unstyled" style="max-height:450px;overflow:auto;" v-on:DOMNodeInsertedIntoDocument="chatPanelScrollToBottom">
-                    <li v-for="message in messages" class="media">
+                <ul id="messageBox" class="list-unstyled" style="max-height:450px;overflow:auto;">
+                    <li class="media">
 
                         <div v-if="message.type == 'info' " class="info">
                             <i class="material-icons">notifications</i>
@@ -76,17 +76,41 @@
                 </ul>
 
                 <hr style="color:blueviolet">
-                <form @submit.prevent="send" class="form-inline">
+                <form id="chatForm" class="form-inline">
                     <div class="form-group mx-sm-3">
                         <label for="message" class="sr-only">输入</label>
-                        <input v-model="message.text" v-on:keyup="usersAreTyping" v-on:keyup.13="stoppedTyping('13')" v-on:keyup.8="stoppedTyping('8')"
-                            type="text" class="form-control" id="message" placeholder="your message here!">
+                        <input id="message" name="message" type="text" class="form-control" placeholder="your message here!">
                     </div>
                     <button type="submit" class="btn btn-primary">send</button>
                 </form>
 
             </div>
         </div>
+    </div>
+
+
+    <div class="col-2">
+        <div class="card border-light text-white bg-secondary ">
+            <div class="card-header">
+                <i class="material-icons">user</i> 当前房间用户 <span class="badge badge-secondary">
+                                1 </span>
+            </div>
+            <div class="card-body">
+                <h4 class="card-title">房间:</h4>
+
+                <ul class="list-group" id="usersInRoom">
+                    <li class="list-group-item list-group-item-info">
+                        user &nbsp;
+                        <span v-if="userIsTyping(user)">
+                                            <i  class="material-icons">create </i>...
+                                    </span>
+
+                    </li>
+                </ul>
+
+            </div>
+        </div>
+
     </div>
 
     <div id="log">
@@ -98,6 +122,33 @@
 <script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
 <script src="https://cdn.bootcss.com/socket.io/2.0.3/socket.io.js"></script>
 <script>
+    /**
+     * @see http://www.cnblogs.com/handongyu/p/6258128.html
+     */
+    function genUid() {
+        return new Date().getTime() + "" + Math.floor(Math.random() * 899 + 100);
+    }
+
+
+    // 服务端断线 重连
+    var _username ;
+    function getUser() {
+        var name 
+        name = _username || prompt("What's your name");
+
+        // 如果取消了 继续递归调用自己 直到输入名称为止
+        if (!name) {
+            return getUser();
+        } else {
+            _username = name ; 
+            return {
+                userId: genUid(),
+                username: name
+            };
+        }
+    }
+
+
     //Will be adding CHATROOM LOGIC HERE
     //We have Server Side funtions, now we need to add client side functions
     var socket = io.connect({
@@ -105,8 +156,66 @@
         transports: ['websocket']
     });
     socket.on('connect', function () {
-        // socket.emit('addUser', prompt("What's your name"));
+        socket.emit('addUser', getUser());
     });
+    socket.on('addUser', function (response) {
+        // socket.emit('addUser', prompt("What's your name"));
+
+        console.log(response);
+        /*
+         var msg = {
+             type: response.roomInfo,
+             data: {
+                 username: response.data.username
+             }
+         };
+         */
+        addUserToRoom(response.data.username);
+
+    });
+    socket.on("usersInRoom", function (resp) {
+        console.log(resp);
+
+        $("#usersInRoom").empty();
+
+        $.each(resp, function (idx, user) {
+            addUserToRoom(user.username);
+        });
+    });
+
+    function addUserToRoom(user) {
+        var $usersInRoom = $("#usersInRoom");
+        /*
+         */
+        var $user = $("<li>")
+            .addClass("list-group-item ")
+            .html(user);
+
+        $usersInRoom.addClass('list-group-item-info')
+
+        $usersInRoom.append($user);
+
+    }
+
+    socket.on("message", function (message) {
+        console.log(message);
+        var $msg = $("<li>")
+            .addClass("list-group-item ");
+
+        $msg.addClass('list-group-item-info')
+
+        if (message.type === 'sysinfo') {
+            $msg.addClass('list-group-item-warning')
+            $msg.html(message.data);
+        }else{
+            $msg.addClass('list-group-item-primary')
+            $msg.html(message.data);  
+        }
+
+        $("#messageBox").append($msg);
+
+    });
+
     socket.on('updateChat', function (username, data) {
         $('#conversation').append('<b>' + username + ':</b> ' + data + '<br>');
     });
@@ -128,9 +237,9 @@
                 .html(value);
 
             if (value === currentRoom) {
-               $room.addClass('list-group-item-warning')
+                $room.addClass('list-group-item-warning')
             } else {
-               $room.addClass('list-group-item-info')
+                $room.addClass('list-group-item-info')
             }
 
             $("#rooms").append($room);
@@ -143,6 +252,19 @@
     }
     //when the page loads we need to do a few things
     $(function () {
+        $("#chatForm").submit(function (e) {
+            e.preventDefault();
+
+            var $msgInput = $("#message");
+            //send it to the server
+            socket.emit('chatMessage', $msgInput.val());
+            //clear the input box
+            $msgInput.val('')
+                .focus();
+
+            return false;
+        });
+
         //get sent data on click
         $('#datasend').click(function () {
             var message = $('#data').val();
