@@ -50,7 +50,7 @@
                     
                 </p>
 
-                <ul id="messageBox" class="list-unstyled" style="max-height:450px;overflow:auto;">
+                <ul id="messageBox" class="list-unstyled" style="max-height:400px;overflow:auto;">
                     <li class="media">
 
                         <div v-if="message.type == 'info' " class="info">
@@ -172,7 +172,7 @@
              }
          };
          */
-        addUserToRoom(response.data.username);
+        addUserToRoom(response.data);
 
     });
     socket.on("usersInRoom", function (resp) {
@@ -181,7 +181,7 @@
         $("#usersInRoom").empty();
 
         $.each(resp, function (idx, user) {
-            addUserToRoom(user.username);
+            addUserToRoom(user);
         });
     });
 
@@ -191,13 +191,24 @@
          */
         var $user = $("<li>")
             .addClass("list-group-item ")
-            .html(user);
+            .html(user.username)
+            .attr('id','u_'+user.userId); // 感觉还是用用户id标识用户比较好
 
         $usersInRoom.addClass('list-group-item-info')
 
         $usersInRoom.append($user);
 
     }
+    function  removeUserFromRoom(user){
+       $("li#u_"+user.userId).empty().remove();
+    }
+
+    // 监听用户离开
+    socket.on("leaveRoom",function(data){
+        console.log("用户离开房间啦！");
+        console.log(data);
+        removeUserFromRoom(data);
+    });
 
     socket.on("message", function (message) {
         console.log(message);
@@ -236,12 +247,20 @@
              */
             var $room = $("<li>")
                 .addClass("list-group-item ")
-                .html(value);
+                .html("<span>"+value+"</span>")
+                .data("room",value);
 
             if (value === currentRoom) {
                 $room.addClass('list-group-item-warning')
             } else {
                 $room.addClass('list-group-item-info')
+                var $link = $("<a/>").attr({
+                    href:"#",
+                    class:"text-primary action-switchroom"
+                })
+                .text("进入房间");
+
+                $room.append($link);
             }
 
             $("#rooms").append($room);
@@ -267,6 +286,14 @@
             return false;
         });
 
+        $(document).on("click",'a.action-switchroom',function(e){
+           
+            var $li = $(this).closest('li');
+            var room = $li.data('room') ;
+            socket.emit('switchRoom', room);
+        });
+
+        /*
         //get sent data on click
         $('#datasend').click(function () {
             var message = $('#data').val();
@@ -286,6 +313,7 @@
                 $('#data').focus();
             }
         });
+        */
     });
 </script>
 </script>

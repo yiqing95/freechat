@@ -32,6 +32,25 @@ var channelUserMap = make(map[string]ClientUser)
 // 不准备支持 一个用户多个聊天室  只能是唯一一个当前存活的聊天室
 var channelRoomMap = make(map[string]string)
 
+func userInfoByChannel(c *gosocketio.Channel) (room string, clientUser ClientUser) {
+	room = channelRoomMap[c.Id()]
+	clientUser = channelUserMap[c.Id()]
+
+	return
+}
+
+func updateRooms(c *gosocketio.Channel, newRoom string) {
+	// 匿名结构体
+	var eventData struct {
+		Rooms       []string `json:"rooms"`
+		CurrentRoom string   `json:"currentRoom"`
+	}
+	eventData.Rooms = rooms
+	eventData.CurrentRoom = newRoom
+
+	c.Emit("updateRooms", eventData)
+}
+
 // func main()  {
 func InitHandler() *gosocketio.Server {
 	//create
@@ -45,15 +64,18 @@ func InitHandler() *gosocketio.Server {
 		// 同时写入自己的存储中
 		channelRoomMap[c.Id()] = rooms[0]
 
-		// 匿名结构体
-		var eventData struct {
-			Rooms       []string `json:"rooms"`
-			CurrentRoom string   `json:"currentRoom"`
-		}
-		eventData.Rooms = rooms
-		eventData.CurrentRoom = rooms[0]
+		updateRooms(c, rooms[0])
+		/*
+			// 匿名结构体
+			var eventData struct {
+				Rooms       []string `json:"rooms"`
+				CurrentRoom string   `json:"currentRoom"`
+			}
+			eventData.Rooms = rooms
+			eventData.CurrentRoom = rooms[0]
 
-		c.Emit("updateRooms", eventData)
+			c.Emit("updateRooms", eventData)
+		*/
 	})
 
 	getUsersInRoom := func(room string, currentChannel *gosocketio.Channel) []ClientUser {
@@ -128,13 +150,46 @@ func InitHandler() *gosocketio.Server {
 
 		msg := Message{
 			Type: "chat",
-			Data: fmt.Sprintf("user %s say: %s ", clientUser.Username, m),
+			Data: fmt.Sprintf("%s say: %s ", clientUser.Username, m),
 		}
 		//send event to all in room
 		c.BroadcastTo(room, "message", msg)
 		return "OK"
 	})
 
+	server.On("switchRoom", func(c *gosocketio.Channel, r string) string {
+		room, clientUser := userInfoByChannel(c)
+		log.Println("switch room from ", room, " to ", r)
+
+		// 离开旧房 换新房
+		// 老房间要先通知人离开了
+		c.BroadcastTo(room, "leaveRoom", clientUser)
+		c.Leave(room)
+		c.Join(r)
+		// 房间映射更改
+		channelRoomMap[c.Id()] = r
+		// 刷新房间列表
+		updateRooms(c, r)
+		// 房间用户列表更新
+		userList := getUsersInRoom(r, nil)
+		if len(userList) > 0 {
+			c.Emit("usersInRoom", userList)
+		}
+
+		msg := Message{
+			Type: "sysinfo",
+			Data: fmt.Sprintf("%s switch to : %s ", clientUser.Username, r),
+		}
+		//send event to all in room
+		c.BroadcastTo(room, "message", msg)
+		// 新房间发送信息
+		c.BroadcastTo(r, "message", Message{
+			Type: "sysinfo",
+			Data: fmt.Sprintf("%s join in %s", clientUser.Username, r),
+		})
+		c.BroadcastTo(r, "addUser", Message{Type: "info", Data: clientUser})
+		return "OK"
+	})
 	// handle system event
 	server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) string {
 		clientUser := channelUserMap[c.Id()]
@@ -143,6 +198,10 @@ func InitHandler() *gosocketio.Server {
 		log.Println(fmt.Sprintf("user %s leave room: %s ", clientUser.Username, room))
 
 		c.BroadcastTo(room, "usersInRoom", getUsersInRoom(room, c))
+
+		// 清除当前用户占用的资源
+		delete(channelUserMap, c.Id())
+		delete(channelRoomMap, c.Id())
 
 		msg := Message{
 			Type: "sysinfo",
